@@ -36,18 +36,22 @@ export class LectureClient {
     } finally { clearTimeout(timeout); }
   }
 
-  async json(path, options = {}) {
+  async json(path, options = {}, allowRefresh = true) {
     const response = await this.request(path, options);
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 && allowRefresh && path !== "/session") {
+      await this.initialize();
+      return this.json(path, options, false);
+    }
     if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
     return data;
   }
 
   async initialize() {
-    const data = await this.json("/session", { method: "POST", headers: { "X-AirSketch": "1" } });
+    const data = await this.json("/session", { method: "POST", headers: { "X-AirSketch": "1" } }, false);
     this.token = data.token;
     if (this.disposed) { this.closeRemote(); return; }
-    this.update({ ready: true });
+    this.update({ ready: true, error: "" });
   }
 
   async startCamera() {
@@ -78,19 +82,21 @@ export class LectureClient {
         this.update({ frameUrl: url, camera: "on" });
         if (previous) URL.revokeObjectURL(previous);
       } else {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         if (!this.cameraWanted || this.disposed || generation !== this.cameraGeneration) return;
-        if (this.state.frameUrl) URL.revokeObjectURL(this.state.frameUrl);
-        this.update({ frameUrl: "", camera: data.state || "error" });
-        if (["error", "off"].includes(data.state) || response.status === 401) {
+        if (response.status === 401) {
+          await this.initialize();
+        } else if (["error", "off"].includes(data.state)) {
           this.cameraWanted = false;
-          this.update({ error: data.error || "Camera stopped or unavailable. Try starting it again." });
+          if (this.state.frameUrl) URL.revokeObjectURL(this.state.frameUrl);
+          this.update({ frameUrl: "", camera: data.state, error: data.error || "Camera stopped or unavailable. Try starting it again." });
+        } else if (!this.state.frameUrl) {
+          this.update({ camera: data.state || "starting" });
         }
       }
     } catch {
-      if (this.cameraWanted && !this.disposed && generation === this.cameraGeneration) {
-        if (this.state.frameUrl) URL.revokeObjectURL(this.state.frameUrl);
-        this.update({ camera: "reconnecting", frameUrl: "" });
+      if (this.cameraWanted && !this.disposed && generation === this.cameraGeneration && !this.state.frameUrl) {
+        this.update({ camera: "reconnecting" });
       }
     }
     if (this.cameraWanted && !this.disposed && generation === this.cameraGeneration) this.frameTimer = setTimeout(() => this.pollFrame(generation), 100);

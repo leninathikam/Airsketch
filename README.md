@@ -10,7 +10,7 @@ In a lecture, the board and the spoken explanation live in different places. A p
 
 AirSketch is a lecture workspace on one laptop. The webcam tracks one hand so the presenter can write on the live video. The browser records the lecture. Google Speech-to-Text turns that audio into a transcript. Generate turns the transcript into study bullets and quiz questions, then Export saves a formatted notes page.
 
-The presenter pinches a thumb and index finger together to draw, the way they would hold a pen. Two raised fingers erase, three fingers change color, and a closed fist held for 0.6 seconds clears the board. Camera and microphone are separate controls.
+The presenter pinches a thumb and index finger together to draw a continuous line at the index tip. Separating those fingers lifts the pen and leaves the line. Raising the index and middle fingers erases. Raising three fingers changes color. A held fist clears the board. Camera and microphone are separate controls.
 
 ## Architecture
 
@@ -94,7 +94,7 @@ Copy the printed `summarize` URL into `.env` as `MODAL_SUMMARIZE_URL`, restart `
 
 - **Camera** opens the webcam. **Stop camera** releases it. A slow device driver is reported instead of pretending the camera is already off.
 - **Microphone** asks for permission on its own. Clips go to Speech-to-Text about every 20 seconds.
-- Pinch the thumb and index finger, with the index finger extended, and hold that pose briefly to draw. Two fingers erase. Three fingers change color. A fist held for 0.6 seconds clears the board.
+- Pinch the thumb and index finger to draw. Separate them to lift the pen. Raise two fingers to erase, three fingers to change color, and hold a fist to clear.
 - **Generate** stops recording, sends the last clip, waits for uploads, and writes study notes. If clips failed, use **Retry uploads** first.
 - The notebook has Transcript, Study notes, and My notes. Search the transcript and move between matches.
 - **Export notes** saves the transcript, study notes, and personal notes as HTML, Markdown, or plain text. Personal notes are added with Ctrl/Cmd+Enter and exist only in this tab.

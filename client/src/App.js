@@ -139,8 +139,8 @@ function App() {
               <span className="tool-divider" /><button className="icon-button" title="Save board snapshot (includes camera image)" aria-label="Save board snapshot" disabled={!state.frameUrl} onClick={saveBoard}><Icon name="photo" /></button></div>
           </div>
           <div className="gesture-bar"><button className="text-button" onClick={() => setGuide(value => !value)} aria-expanded={guide} aria-controls="gesture-guide"><Icon name="help" size={15} />Gesture guide<Icon name={guide ? "up" : "down"} size={12} /></button>
-            <span><b>Pinch</b> Draw</span><span><b>2 fingers</b> Erase</span><span><b>3 fingers</b> Color</span><span><b>Fist</b> Clear</span></div>
-          {guide && <div className="gesture-details" id="gesture-guide"><p>Hold your hand in view. Pinch your thumb and index finger to draw; raise your index and middle fingers to erase. Raise three fingers to switch colors.</p><p>Hold a fist for 0.6 seconds to clear the board. Undo clear restores the last cleared drawing. Long drawings retain the latest 20,000 points.</p></div>}
+            <span><b>Pinch</b> Draw</span><span><b>Two fingers</b> Erase</span><span><b>Three fingers</b> Color</span><span><b>Fist</b> Clear</span></div>
+          {guide && <div className="gesture-details" id="gesture-guide"><p>Hold one hand in view. Pinch your thumb and index finger to write at the index tip. Separate them to lift the pen; the line stays. Raise the index and middle fingers and hold briefly to erase. Raise the index, middle, and ring fingers to change color. Make a fist and hold it to clear.</p><p>Undo clear restores the last cleared drawing.</p></div>}
         </section>
         <Notebook key={lecture} state={state} tab={tab} setTab={setTab} comments={comments} setComments={setComments}
           onGenerate={() => { setTab("Study notes"); act("generate"); }} onRetry={() => act("retryUploads")} onCopy={copy} />

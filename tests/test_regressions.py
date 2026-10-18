@@ -14,50 +14,79 @@ import cloud_notes
 with patch.object(cloud_notes, "load_local_env"):
     import run
 from board import SketchBoard
+from draw_vid import DrawingState
+from gestures import classify_hand
 from notes_store import NotesStore
 from camera import Camera
 
 
+def sample_hand(raised=(), pinch=False, fist=False):
+    points = [SimpleNamespace(x=.5, y=.9) for _ in range(21)]
+    for tip in (8, 12, 16, 20):
+        x = .35 + ((tip - 8) // 4) * .1
+        points[tip - 3] = SimpleNamespace(x=x, y=.65)
+        points[tip - 2] = SimpleNamespace(x=x, y=.5)
+        points[tip - 1] = SimpleNamespace(x=x, y=.38 if tip in raised else .64)
+        points[tip] = SimpleNamespace(x=x, y=.25 if tip in raised else .72)
+    points[4] = SimpleNamespace(x=points[8].x + .01 if pinch else .1, y=points[8].y if pinch else .9)
+    if fist:
+        points[4] = SimpleNamespace(x=.45, y=.66)
+    return SimpleNamespace(landmark=points)
+
+
 class BoardTests(unittest.TestCase):
-    def stroke(self, points):
-        return {"tool": "draw", "points": points, "color": (255,255,255), "width": 2}
-
-    def test_erase_splits_sparse_segment(self):
+    def test_tracking_loss_keeps_ink(self):
         board = SketchBoard()
-        board.strokes = [self.stroke([(0,100),(200,100)])]
-        board._erase_near((100,100))
-        self.assertEqual([s["points"] for s in board.strokes], [[(0,100),(60,100)],[(140,100),(200,100)]])
-
-    def test_erase_dense_stroke_does_not_reconnect(self):
-        board = SketchBoard()
-        board.strokes = [self.stroke([(x,100) for x in range(0,201,10)])]
-        board._erase_near((100,100))
-        self.assertEqual(len(board.strokes), 2)
-        self.assertLessEqual(board.strokes[0]["points"][-1][0],60)
-        self.assertGreaterEqual(board.strokes[1]["points"][0][0],140)
-
-    def test_tracking_loss_finishes_stroke_and_resets_hold(self):
-        board = SketchBoard()
-        board.active = self.stroke([(1,1),(2,2)])
-        board.smooth, board.clear_since = (2,2), 10
+        board.circles = [((1, 1), (255, 0, 0), 3)]
+        board.cursor = (1, 1)
         board.tracking_lost()
-        self.assertIsNone(board.active)
-        self.assertIsNone(board.smooth)
-        self.assertIsNone(board.clear_since)
-        self.assertEqual(len(board.strokes), 1)
+        self.assertIsNone(board.cursor)
+        self.assertEqual(len(board.circles), 1)
 
-    def test_clear_is_elapsed_time_and_undoable(self):
+    def test_fist_requires_hold_and_undo_restores(self):
         board = SketchBoard()
-        board.strokes = [self.stroke([(1,1),(2,2)])]
-        hand = SimpleNamespace(landmark=[SimpleNamespace(x=.5,y=.5)]*21)
-        with patch("board.time.monotonic", side_effect=[10,10.1,10.7]):
-            board.apply("clear",hand,(480,640,3))
-            board.apply("clear",hand,(480,640,3))
-            self.assertEqual(len(board.strokes),1)
-            board.apply("clear",hand,(480,640,3))
-        self.assertEqual(board.strokes,[])
+        board.circles = [((20, 20), (0, 0, 0), 3)]
+        fist = sample_hand(fist=True)
+        board.apply(None, fist, (480, 640), now=0)
+        board.apply(None, fist, (480, 640), now=.59)
+        self.assertEqual(len(board.circles), 1)
+        board.apply(None, fist, (480, 640), now=.61)
+        self.assertEqual(board.circles, [])
         board.undo_clear()
-        self.assertEqual(len(board.strokes),1)
+        self.assertEqual(len(board.circles), 1)
+
+    def test_releasing_pinch_does_not_erase_ink(self):
+        board = SketchBoard()
+        board.apply(None, sample_hand((8,), True), (480, 640), now=0)
+        ink = list(board.circles)
+        for t in (.1, .3, .49, .5, .7):
+            board.apply(None, sample_hand((8, 12)), (480, 640), now=t)
+            self.assertEqual(board.circles, ink)
+
+    def test_brief_idle_keeps_the_stroke(self):
+        board = SketchBoard()
+        board.apply(None, sample_hand((8,), True), (480, 640), now=0)
+        before = len(board.circles)
+        board.apply(None, sample_hand(), (480, 640), now=.05)
+        self.assertEqual(board.gesture, "draw")
+        self.assertGreater(len(board.circles), before)
+
+
+class GestureTests(unittest.TestCase):
+    def test_exact_finger_counts(self):
+        for fingers, expected in [((8, 12), "erase"), ((8, 12, 16), "color"), ((8, 12, 16, 20), "idle")]:
+            self.assertEqual(classify_hand(sample_hand(fingers)), expected)
+        self.assertEqual(classify_hand(sample_hand((8,), True)), "draw")
+        self.assertEqual(classify_hand(sample_hand((8,))), "idle")
+        self.assertEqual(classify_hand(sample_hand(fist=True)), "clear")
+
+    def test_pinch_draws_a_continuous_stroke(self):
+        board = SketchBoard()
+        board.apply(None, sample_hand((8,), True), (480, 640), now=0)
+        self.assertTrue(board.circles)
+        state = DrawingState()
+        state.points_for((10, 10))
+        self.assertEqual(state.points_for((400, 300)), [(400, 300)])
 
 
 class NotesTests(unittest.TestCase):

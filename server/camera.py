@@ -60,7 +60,9 @@ class Camera:
             state = self.state
             if state == "on" and (age is None or age > 3):
                 state = "reconnecting"
-            return {"state": state, "age": age}, self.jpeg if state == "on" else None
+            # Keep showing the last picture while the next frame is still processing.
+            picture = self.jpeg if state in ("on", "reconnecting", "starting") else None
+            return {"state": state, "age": age}, picture
 
     def _open(self, stop):
         apis = (cv2.CAP_MSMF, cv2.CAP_DSHOW, cv2.CAP_ANY) if os.name == "nt" else (cv2.CAP_ANY,)
@@ -80,9 +82,11 @@ class Camera:
         capture = None
         failed = False
         attempts = 0
+        misses = 0
         try:
-            with mp.solutions.hands.Hands(max_num_hands=1, min_detection_confidence=0.6,
-                                          min_tracking_confidence=0.6) as hands:
+            with mp.solutions.hands.Hands(max_num_hands=1, model_complexity=0,
+                                          min_detection_confidence=0.5,
+                                          min_tracking_confidence=0.5) as hands:
                 while not stop.is_set():
                     with self.lock:
                         expired = time.monotonic() - self.lease > 10
@@ -111,15 +115,29 @@ class Camera:
                     if stop.is_set():
                         break
                     frame = cv2.flip(frame, 1)
-                    rgb = cv2.cvtColor(cv2.resize(frame, (320, 240)), cv2.COLOR_BGR2RGB)
-                    rgb.flags.writeable = False
-                    result = hands.process(rgb)
+                    # Publish a bare preview only until the first painted frame exists.
+                    # Replacing a painted frame here hid the ink on almost every poll.
+                    with self.lock:
+                        needs_preview = self.jpeg is None
+                    if needs_preview:
+                        preview_ok, preview = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                        if preview_ok:
+                            with self.lock:
+                                if self.jpeg is None:
+                                    self.jpeg = preview.tobytes()
+                                    self.last_frame = time.monotonic()
+                                    self.state = "on"
+                    result = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                    shape = frame.shape[:2]
                     if result.multi_hand_landmarks:
+                        misses = 0
                         hand = result.multi_hand_landmarks[0]
-                        mp.solutions.drawing_utils.draw_landmarks(frame, hand, mp.solutions.hands.HAND_CONNECTIONS)
-                        board.apply(classify_hand(hand), hand, frame.shape)
+                        board.apply(classify_hand(hand, shape), hand, shape)
                     else:
-                        board.tracking_lost()
+                        misses += 1
+                        # One missed frame is normal. Breaking the stroke there made the line jump.
+                        if misses >= 4:
+                            board.tracking_lost()
                     ok, buffer = cv2.imencode(".jpg", board.paint(frame), [cv2.IMWRITE_JPEG_QUALITY, 70])
                     if not ok:
                         raise RuntimeError("Unable to encode camera frame")

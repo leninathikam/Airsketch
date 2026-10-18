@@ -18,15 +18,9 @@ persistent storage if this application is later deployed as a shared service.
 MediaPipe Hands. Frame requests renew a 10-second lease. Stop signals the worker and waits for release;
 closing a tab requests deletion, while lease expiry handles lost disconnect requests.
 
-The worker mirrors each frame, resizes a copy to 320 by 240 for hand tracking, and applies a rule-based
-gesture classification to the original frame. No custom model is trained. MediaPipe supplies the
-learned hand detector; draw/erase/color/clear are geometric rules, not an agent or a trained classifier.
+The worker mirrors each frame and runs hand tracking on that frame. No custom model is trained. MediaPipe supplies the learned hand detector. Draw, erase, color, and clear are distance checks on the 21 landmarks.
 
-Pinching draws at the thumb/index midpoint. Movement is smoothed under the board lock. Tracking loss
-finishes the active stroke and resets smoothing and the clear hold. A fist must remain detected for
-0.6 elapsed seconds. Color changes are latched until the gesture changes. Erasing clips each polyline
-segment against a circular eraser and splits surviving runs, including sparse segments whose endpoints
-lie outside the eraser. Clear stores one undo snapshot. Old drawing points retire at the configured cap.
+Drawing starts when the thumb tip and index tip are pinched together, closer than a fraction of the index finger length. Ink is a continuous stroke at the index tip, with gaps between frames filled in. Separating those fingers leaves the line in place. Erasing starts after the index and middle fingers stay raised for a short hold, and it does not run in the half-second after the pen lifts. Three raised fingers change the color once. A fist held for 0.6 seconds clears the board. The newest 20,000 stroke points are kept.
 
 The worker paints and JPEG-encodes the board. React polls `/frame.jpg` about every 100 ms, displays the
 whole image with `object-fit: contain`, and revokes old blob URLs. There is no MJPEG endpoint in this
