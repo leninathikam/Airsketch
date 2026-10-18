@@ -1,0 +1,8 @@
+{
+  "short_name": "AirSketch",
+  "name": "AirSketch",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#74ebd5",
+  "theme_color": "#436cbf"
+}

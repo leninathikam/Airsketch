@@ -1,0 +1,8 @@
+.venv/
+client/node_modules/
+client/build/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+modal_notes/modal-deploy.log
