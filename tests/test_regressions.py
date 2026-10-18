@@ -63,13 +63,14 @@ class BoardTests(unittest.TestCase):
             board.apply(None, sample_hand((8, 12)), (480, 640), now=t)
             self.assertEqual(board.circles, ink)
 
-    def test_brief_idle_keeps_the_stroke(self):
+    def test_opening_pinch_lifts_pen_immediately(self):
         board = SketchBoard()
         board.apply(None, sample_hand((8,), True), (480, 640), now=0)
-        before = len(board.circles)
-        board.apply(None, sample_hand(), (480, 640), now=.05)
-        self.assertEqual(board.gesture, "draw")
-        self.assertGreater(len(board.circles), before)
+        ink = list(board.circles)
+        board.apply(None, sample_hand((8,)), (480, 640), now=.05)
+        self.assertEqual(board.gesture, "idle")
+        self.assertEqual(board.circles, ink)
+        self.assertEqual(board.status()["width"], 4)
 
 
 class GestureTests(unittest.TestCase):

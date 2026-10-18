@@ -99,7 +99,7 @@ export class LectureClient {
         this.update({ camera: "reconnecting" });
       }
     }
-    if (this.cameraWanted && !this.disposed && generation === this.cameraGeneration) this.frameTimer = setTimeout(() => this.pollFrame(generation), 100);
+    if (this.cameraWanted && !this.disposed && generation === this.cameraGeneration) this.frameTimer = setTimeout(() => this.pollFrame(generation), 40);
   }
 
   async stopCamera() {

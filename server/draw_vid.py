@@ -13,7 +13,7 @@ class DrawingState:
         self.previous = None
         self.action = "Idle"
         self.color = 3
-        self.radius = 3
+        self.radius = 2
         self.color_since = None
         self.release_since = None
         self.color_latched = False
@@ -43,9 +43,10 @@ class DrawingState:
     def points_for(self, position):
         previous = self.previous
         if previous is not None:
-            if ((position[0] - previous[0]) ** 2 + (position[1] - previous[1]) ** 2) ** .5 > 160:
+            gap = ((position[0] - previous[0]) ** 2 + (position[1] - previous[1]) ** 2) ** .5
+            if gap > 220:
                 previous = None
             else:
-                position = tuple(round(a * .5 + b * .5) for a, b in zip(previous, position))
+                position = tuple(round(a * .35 + b * .65) for a, b in zip(previous, position))
         self.previous = position
-        return stroke_points(previous, position, self.radius)
+        return stroke_points(previous, position, 1)

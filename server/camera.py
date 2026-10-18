@@ -82,7 +82,7 @@ class Camera:
         capture = None
         failed = False
         attempts = 0
-        misses = 0
+        missed = 0
         try:
             with mp.solutions.hands.Hands(max_num_hands=1, model_complexity=0,
                                           min_detection_confidence=0.5,
@@ -130,13 +130,13 @@ class Camera:
                     result = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                     shape = frame.shape[:2]
                     if result.multi_hand_landmarks:
-                        misses = 0
+                        missed = 0
                         hand = result.multi_hand_landmarks[0]
                         board.apply(classify_hand(hand, shape), hand, shape)
                     else:
-                        misses += 1
-                        # One missed frame is normal. Breaking the stroke there made the line jump.
-                        if misses >= 4:
+                        missed += 1
+                        # Keep the stroke alive across a one- or two-frame tracking drop.
+                        if missed >= 3:
                             board.tracking_lost()
                     ok, buffer = cv2.imencode(".jpg", board.paint(frame), [cv2.IMWRITE_JPEG_QUALITY, 70])
                     if not ok:

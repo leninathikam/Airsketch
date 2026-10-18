@@ -47,14 +47,8 @@ class SketchBoard:
             if action == "draw":
                 self.last_draw = now
             # Pen release passes through ambiguous shapes. Never destroy ink then.
-            released = False
             if action in ("erase", "clear") and now - self.last_draw < .5:
                 action = "idle"
-                released = True
-            # A single idle frame in the middle of a pinch used to break the line.
-            if (not released and action == "idle" and self.gesture == "draw"
-                    and now - self.last_draw <= .16):
-                action = "draw"
             if action == "erase":
                 if self.erase_since is None:
                     self.erase_since = now
@@ -74,11 +68,19 @@ class SketchBoard:
                 self.clear_since = None
                 self.clear_latched = False
             h, w = image_shape[:2]
-            point = (round(hand.landmark[8].x * w), round(hand.landmark[8].y * h))
-            self.cursor = point
+            # The pinch meets halfway between thumb and index; tracking the midpoint
+            # cuts single-landmark jitter in half while writing.
+            if action == "draw":
+                raw_x = (hand.landmark[4].x + hand.landmark[8].x) * .5 * w
+                raw_y = (hand.landmark[4].y + hand.landmark[8].y) * .5 * h
+                point = (round(raw_x), round(raw_y))
+            else:
+                point = (round(hand.landmark[8].x * w), round(hand.landmark[8].y * h))
+            self.cursor = self.state.previous if action == "draw" and self.state.previous else point
             if action == "draw":
                 for position in self.state.points_for(point):
                     self.circles.append((position, PALETTE[self.state.color], self.state.radius))
+                self.cursor = self.state.previous or point
                 if len(self.circles) > 20000:
                     self.circles = self.circles[-20000:]
                     self._dirty = True
@@ -154,7 +156,12 @@ class SketchBoard:
             layer = self._layer
             cursor, action, radius = self.cursor, self.gesture, self.state.radius
             color = PALETTE[self.state.color]
-        frame[mask > 0] = layer[mask > 0]
+        # Alpha-blend the anti-aliased stroke mask so curves do not turn into staircases.
+        active = mask > 0
+        if np.any(active):
+            alpha = mask[active][:, None].astype(np.uint16)
+            frame[active] = ((layer[active].astype(np.uint16) * alpha
+                              + frame[active].astype(np.uint16) * (255 - alpha) + 127) // 255).astype(np.uint8)
         if cursor is not None:
             cursor_color = color if action in ("draw", "erase") else (80, 220, 120)
             ring = 35 if action == "erase" else radius + 4

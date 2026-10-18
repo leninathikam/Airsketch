@@ -16,11 +16,13 @@ def classify_hand(hand, image_shape=None, drawing=False):
     p = hand.landmark
     # A pen grip curls the fingers too: test fingertip contact before fist/counts.
     index_length = sum(distance(p[a], p[b]) for a, b in ((5, 6), (6, 7), (7, 8)))
-    # Stay in the pinch a little longer so a one-frame opening does not lift the pen.
-    if index_length > .03 and distance(p[4], p[8]) < index_length * (.36 if drawing else .18):
+    palm = max(distance(p[0], p[9]), distance(p[0], p[5]), distance(p[5], p[17]), .01)
+    # Turning the hand foreshortens the index finger; keep a palm-scaled floor so the
+    # pinch does not drop mid-letter, and require a clear opening before lifting.
+    span = max(index_length, palm * .9)
+    if index_length > .02 and distance(p[4], p[8]) < span * (.48 if drawing else .24):
         return "draw"
     fingers = tuple(extended(p, tip) for tip in (8, 12, 16, 20))
-    palm = max(distance(p[0], p[9]), .01)
     # A fist must be compact; a relaxed or partially visible hand is not a clear.
     curled = all(distance(p[tip], p[tip - 3]) < palm * .65
                  and distance(p[tip], p[0]) < distance(p[tip - 2], p[0]) * .95
